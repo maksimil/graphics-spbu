@@ -42,7 +42,7 @@ const Raster = struct {
 
         for (0..(@as(usize, @intCast(dx)) + 1)) |idx| {
             const i: i32 = @intCast(idx);
-            const n = @divTrunc(i * dy, dx);
+            const n = @divFloor(2 * i * dy + dx, 2 * dx);
             this.draw_px(x0 + i, y0 + n, color);
         }
     }
@@ -63,7 +63,7 @@ const Raster = struct {
 
         for (0..(@as(usize, @intCast(dy)) + 1)) |idx| {
             const i: i32 = @intCast(idx);
-            const n = @divTrunc(i * dx, dy);
+            const n = @divFloor(2 * i * dx + dy, 2 * dy);
             this.draw_px(x0 + n, y0 + i, color);
         }
     }
@@ -94,6 +94,32 @@ const Raster = struct {
         }
     }
 
+    pub fn rasterize_circle(this: @This(), x0: i32, y0: i32, r: i32, color: RGBA) void {
+        var dx: i32 = 0;
+        var dy: i32 = r;
+        var v: i32 = 4 * r * r - 1;
+
+        while (dy >= dx) {
+            this.draw_px(x0 + dx, y0 + dy, color);
+            this.draw_px(x0 - dx, y0 + dy, color);
+            this.draw_px(x0 + dx, y0 - dy, color);
+            this.draw_px(x0 - dx, y0 - dy, color);
+
+            this.draw_px(x0 + dy, y0 + dx, color);
+            this.draw_px(x0 - dy, y0 + dx, color);
+            this.draw_px(x0 + dy, y0 - dx, color);
+            this.draw_px(x0 - dy, y0 - dx, color);
+
+            v -= 8 * dx + 4;
+
+            if (v < 4 * dy * (dy - 1)) {
+                dy -= 1;
+            }
+
+            dx += 1;
+        }
+    }
+
     pub fn render_out(this: @This(), file_name: [:0]const u8) !void {
         try render.render_to_file(
             file_name,
@@ -115,11 +141,19 @@ fn DrawCross(raster: Raster, x0: i32, y0: i32, points: []const [2]i32) void {
     raster.draw_px(x0, y0, RGBA_RED);
 }
 
+fn DrawCircles(raster: Raster, x0: i32, y0: i32, radii: []const i32) void {
+    raster.draw_px(x0, y0, RGBA_RED);
+
+    for (0..radii.len) |i| {
+        raster.rasterize_circle(x0, y0, radii[i], RGBA_BLACK);
+    }
+}
+
 pub fn Run() !void {
     const file_name = "out.png";
 
-    const width = 412;
-    const height = 412;
+    const width = 409;
+    const height = 409;
     var data = [_]RGBA{RGBA_WHITE} ** (width * height);
     const raster = Raster.init(&data, width, height);
 
@@ -186,6 +220,16 @@ pub fn Run() !void {
         };
 
         DrawCross(raster, x0, y0, &points);
+    }
+
+    // circle 1
+    {
+        const x0 = 51 + 0 * 102;
+        const y0 = 51 + 1 * 102;
+
+        const radii = [_]i32{ 50, 40, 30, 20, 10, 5 };
+
+        DrawCircles(raster, x0, y0, &radii);
     }
 
     try raster.render_out(file_name);
