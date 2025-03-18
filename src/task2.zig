@@ -149,6 +149,66 @@ fn DrawCircles(raster: Raster, x0: i32, y0: i32, radii: []const i32) void {
     }
 }
 
+fn DrawCircleDDA(raster: Raster, x0: i32, y0: i32, r: i32, color: RGBA) void {
+    var dx: i32 = 0;
+    var dy: f32 = @floatFromInt(r);
+
+    while (dy >= @as(f32, @floatFromInt(dx))) {
+        const int_dy: i32 = @intFromFloat(@round(dy));
+        raster.draw_px(x0 + dx, y0 + int_dy, color);
+        raster.draw_px(x0 - dx, y0 + int_dy, color);
+        raster.draw_px(x0 + dx, y0 - int_dy, color);
+        raster.draw_px(x0 - dx, y0 - int_dy, color);
+
+        raster.draw_px(x0 + int_dy, y0 + dx, color);
+        raster.draw_px(x0 - int_dy, y0 + dx, color);
+        raster.draw_px(x0 + int_dy, y0 - dx, color);
+        raster.draw_px(x0 - int_dy, y0 - dx, color);
+
+        dy += -@as(f32, @floatFromInt(dx)) / dy;
+        dx += 1;
+    }
+}
+
+fn DrawCirclesDDA(raster: Raster, x0: i32, y0: i32, radii: []const i32) void {
+    raster.draw_px(x0, y0, RGBA_RED);
+
+    for (0..radii.len) |i| {
+        DrawCircleDDA(raster, x0, y0, radii[i], RGBA_BLACK);
+    }
+}
+
+fn DrawCircleParametric(raster: Raster, x0: i32, y0: i32, r: i32, color: RGBA) void {
+    const angle_step = std.math.pi / @as(f32, @floatFromInt(4 * r));
+    const r_float: f32 = @floatFromInt(r);
+
+    for (0..@as(usize, @intCast(r))) |i| {
+        const angle = angle_step * @as(f32, @floatFromInt(i));
+        const dx = r_float * std.math.sin(angle);
+        const dy = r_float * std.math.cos(angle);
+
+        const int_dx: i32 = @intFromFloat(@round(dx));
+        const int_dy: i32 = @intFromFloat(@round(dy));
+        raster.draw_px(x0 + int_dx, y0 + int_dy, color);
+        raster.draw_px(x0 - int_dx, y0 + int_dy, color);
+        raster.draw_px(x0 + int_dx, y0 - int_dy, color);
+        raster.draw_px(x0 - int_dx, y0 - int_dy, color);
+
+        raster.draw_px(x0 + int_dy, y0 + int_dx, color);
+        raster.draw_px(x0 - int_dy, y0 + int_dx, color);
+        raster.draw_px(x0 + int_dy, y0 - int_dx, color);
+        raster.draw_px(x0 - int_dy, y0 - int_dx, color);
+    }
+}
+
+fn DrawCirclesParametric(raster: Raster, x0: i32, y0: i32, radii: []const i32) void {
+    raster.draw_px(x0, y0, RGBA_RED);
+
+    for (0..radii.len) |i| {
+        DrawCircleParametric(raster, x0, y0, radii[i], RGBA_BLACK);
+    }
+}
+
 pub fn Run() !void {
     const file_name = "out.png";
 
@@ -223,13 +283,28 @@ pub fn Run() !void {
     }
 
     // circle 1
+    const radii = [_]i32{ 50, 40, 30, 20, 10, 5 };
     {
         const x0 = 51 + 0 * 102;
         const y0 = 51 + 1 * 102;
 
-        const radii = [_]i32{ 50, 40, 30, 20, 10, 5 };
-
         DrawCircles(raster, x0, y0, &radii);
+    }
+
+    // circle 2
+    {
+        const x0 = 51 + 1 * 102;
+        const y0 = 51 + 1 * 102;
+
+        DrawCirclesDDA(raster, x0, y0, &radii);
+    }
+
+    // circle 3
+    {
+        const x0 = 51 + 2 * 102;
+        const y0 = 51 + 1 * 102;
+
+        DrawCirclesParametric(raster, x0, y0, &radii);
     }
 
     try raster.render_out(file_name);
