@@ -17,6 +17,12 @@ pub const Raster = struct {
         return @This(){ .data = data, .width = width, .height = height };
     }
 
+    pub fn clear(this: @This(), color: RGBA) void {
+        for (0..@as(usize, @intCast(this.width * this.height))) |i| {
+            this.data[i] = color;
+        }
+    }
+
     pub fn draw_px(this: @This(), x: i32, y: i32, rgba: RGBA) void {
         std.debug.assert(x >= 0);
         std.debug.assert(y >= 0);
