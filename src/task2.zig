@@ -10,7 +10,14 @@ fn DrawCross(r: Raster, x0: i32, y0: i32, points: []const [2]i32) void {
         const x1 = points[i][0];
         const y1 = points[i][1];
 
-        r.rasterize_line(x0, y0, x1, y1, raster.RGBA_BLACK);
+        r.rasterize_line(
+            raster.BresenhamRasterizer,
+            x0,
+            y0,
+            x1,
+            y1,
+            raster.RGBA_BLACK,
+        );
     }
 
     r.draw_px(x0, y0, raster.RGBA_RED);

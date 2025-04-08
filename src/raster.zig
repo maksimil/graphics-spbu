@@ -1,5 +1,6 @@
 const std = @import("std");
 const render = @import("render.zig");
+const config = @import("config.zig");
 
 const RGBA = render.RGBA;
 
@@ -32,50 +33,9 @@ pub const Raster = struct {
         this.data[@intCast(x + y * this.width)] = rgba;
     }
 
-    fn rasterize_line_I_VIII(
-        this: @This(),
-        x0: i32,
-        y0: i32,
-        x1: i32,
-        y1: i32,
-        color: RGBA,
-    ) void {
-        const dx = x1 - x0;
-        const dy = y1 - y0;
-
-        std.debug.assert(dx >= 0);
-        std.debug.assert(dx >= @abs(dy));
-
-        for (0..(@as(usize, @intCast(dx)) + 1)) |idx| {
-            const i: i32 = @intCast(idx);
-            const n = @divFloor(2 * i * dy + dx, 2 * dx);
-            this.draw_px(x0 + i, y0 + n, color);
-        }
-    }
-
-    fn rasterize_line_II_III(
-        this: @This(),
-        x0: i32,
-        y0: i32,
-        x1: i32,
-        y1: i32,
-        color: RGBA,
-    ) void {
-        const dx = x1 - x0;
-        const dy = y1 - y0;
-
-        std.debug.assert(dy >= 0);
-        std.debug.assert(dy >= @abs(dx));
-
-        for (0..(@as(usize, @intCast(dy)) + 1)) |idx| {
-            const i: i32 = @intCast(idx);
-            const n = @divFloor(2 * i * dx + dy, 2 * dy);
-            this.draw_px(x0 + n, y0 + i, color);
-        }
-    }
-
     pub fn rasterize_line(
         this: @This(),
+        rasterizer: anytype,
         x0: i32,
         y0: i32,
         x1: i32,
@@ -85,17 +45,70 @@ pub const Raster = struct {
         const dx = x1 - x0;
         const dy = y1 - y0;
 
-        if (dx + dy >= 0) {
-            if (dx - dy >= 0) {
-                this.rasterize_line_I_VIII(x0, y0, x1, y1, color);
+        std.debug.assert(x0 >= 0);
+        std.debug.assert(x0 < this.width);
+        std.debug.assert(y0 >= 0);
+        std.debug.assert(y0 < this.height);
+
+        if (dx >= 0) {
+            if (dy >= 0) {
+                if (dx >= dy) {
+                    rasterizer.call(dx, dy, MakePxDrawerType(1, 0, 0, 1){
+                        .r = this,
+                        .x0 = x0,
+                        .y0 = y0,
+                    }, color);
+                } else {
+                    rasterizer.call(dy, dx, MakePxDrawerType(0, 1, 1, 0){
+                        .r = this,
+                        .x0 = x0,
+                        .y0 = y0,
+                    }, color);
+                }
             } else {
-                this.rasterize_line_II_III(x0, y0, x1, y1, color);
+                if (dx >= -dy) {
+                    rasterizer.call(dx, -dy, MakePxDrawerType(1, 0, 0, -1){
+                        .r = this,
+                        .x0 = x0,
+                        .y0 = y0,
+                    }, color);
+                } else {
+                    rasterizer.call(-dy, dx, MakePxDrawerType(0, 1, -1, 0){
+                        .r = this,
+                        .x0 = x0,
+                        .y0 = y0,
+                    }, color);
+                }
             }
         } else {
-            if (dx - dy >= 0) {
-                this.rasterize_line_II_III(x1, y1, x0, y0, color);
+            if (dy >= 0) {
+                if (-dx >= dy) {
+                    rasterizer.call(-dx, dy, MakePxDrawerType(-1, 0, 0, 1){
+                        .r = this,
+                        .x0 = x0,
+                        .y0 = y0,
+                    }, color);
+                } else {
+                    rasterizer.call(dy, -dx, MakePxDrawerType(0, -1, 1, 0){
+                        .r = this,
+                        .x0 = x0,
+                        .y0 = y0,
+                    }, color);
+                }
             } else {
-                this.rasterize_line_I_VIII(x1, y1, x0, y0, color);
+                if (-dx >= -dy) {
+                    rasterizer.call(-dx, -dy, MakePxDrawerType(-1, 0, 0, -1){
+                        .r = this,
+                        .x0 = x0,
+                        .y0 = y0,
+                    }, color);
+                } else {
+                    rasterizer.call(-dy, -dx, MakePxDrawerType(0, -1, -1, 0){
+                        .r = this,
+                        .x0 = x0,
+                        .y0 = y0,
+                    }, color);
+                }
             }
         }
     }
@@ -133,5 +146,40 @@ pub const Raster = struct {
             @intCast(this.height),
             this.data,
         );
+    }
+};
+
+fn MakePxDrawerType(
+    comptime xi: i32,
+    comptime xn: i32,
+    comptime yi: i32,
+    comptime yn: i32,
+) type {
+    return struct {
+        r: Raster,
+        x0: i32,
+        y0: i32,
+
+        pub fn call(this: @This(), i: i32, n: i32, color: RGBA) void {
+            this.r.draw_px(
+                this.x0 + xi * i + xn * n,
+                this.y0 + yi * i + yn * n,
+                color,
+            );
+        }
+    };
+}
+
+pub const BresenhamRasterizer = struct {
+    pub fn call(x: i32, y: i32, pxdrawer: anytype, color: RGBA) void {
+        std.debug.assert(x >= 0);
+        std.debug.assert(y >= 0);
+        std.debug.assert(y <= x);
+
+        for (0..(@as(usize, @intCast(x)) + 1)) |idx| {
+            const i: i32 = @intCast(idx);
+            const n = @divFloor(2 * i * y + x, 2 * x);
+            pxdrawer.call(i, n, color);
+        }
     }
 };

@@ -16,7 +16,14 @@ fn DrawLine(r: raster.Raster, v0: read_obj.ObjVertex, v1: read_obj.ObjVertex) vo
     const y1: i32 = @intFromFloat(@round((-v1.y + 1.0) / 2.0 * (kWidth - 1)));
 
     if (v0.x >= 0.0 or v1.x >= 0.0)
-    r.rasterize_line(x0, y0, x1, y1, raster.RGBA_BLACK);
+        r.rasterize_line(
+            raster.BresenhamRasterizer,
+            x0,
+            y0,
+            x1,
+            y1,
+            raster.RGBA_BLACK,
+        );
 }
 
 pub fn Run() !void {
