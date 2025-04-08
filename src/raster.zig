@@ -8,6 +8,19 @@ pub const RGBA_WHITE = RGBA{ .r = 255, .g = 255, .b = 255, .a = 255 };
 pub const RGBA_BLACK = RGBA{ .r = 0, .g = 0, .b = 0, .a = 255 };
 pub const RGBA_RED = RGBA{ .r = 255, .g = 0, .b = 0, .a = 255 };
 
+fn MixColors(a: RGBA, b: RGBA, a_ratio: config.Scalar) RGBA {
+    return RGBA{
+        .r = @intFromFloat(@round(a_ratio * config.ToScalar(a.r) +
+            (1 - a_ratio) * config.ToScalar(b.r))),
+        .g = @intFromFloat(@round(a_ratio * config.ToScalar(a.g) +
+            (1 - a_ratio) * config.ToScalar(b.g))),
+        .b = @intFromFloat(@round(a_ratio * config.ToScalar(a.b) +
+            (1 - a_ratio) * config.ToScalar(b.b))),
+        .a = @intFromFloat(@round(a_ratio * config.ToScalar(a.a) +
+            (1 - a_ratio) * config.ToScalar(b.a))),
+    };
+}
+
 pub const Raster = struct {
     data: []render.RGBA,
     width: i32,
@@ -50,6 +63,11 @@ pub const Raster = struct {
         std.debug.assert(y0 >= 0);
         std.debug.assert(y0 < this.height);
 
+        std.debug.assert(x1 >= 0);
+        std.debug.assert(x1 < this.width);
+        std.debug.assert(y1 >= 0);
+        std.debug.assert(y1 < this.height);
+
         if (dx >= 0) {
             if (dy >= 0) {
                 if (dx >= dy) {
@@ -81,32 +99,32 @@ pub const Raster = struct {
                 }
             }
         } else {
-            if (dy >= 0) {
-                if (-dx >= dy) {
-                    rasterizer.call(-dx, dy, MakePxDrawerType(-1, 0, 0, 1){
+            if (-dy >= 0) {
+                if (-dx >= -dy) {
+                    rasterizer.call(-dx, -dy, MakePxDrawerType(1, 0, 0, 1){
                         .r = this,
-                        .x0 = x0,
-                        .y0 = y0,
+                        .x0 = x1,
+                        .y0 = y1,
                     }, color);
                 } else {
-                    rasterizer.call(dy, -dx, MakePxDrawerType(0, -1, 1, 0){
+                    rasterizer.call(-dy, -dx, MakePxDrawerType(0, 1, 1, 0){
                         .r = this,
-                        .x0 = x0,
-                        .y0 = y0,
+                        .x0 = x1,
+                        .y0 = y1,
                     }, color);
                 }
             } else {
-                if (-dx >= -dy) {
-                    rasterizer.call(-dx, -dy, MakePxDrawerType(-1, 0, 0, -1){
+                if (-dx >= dy) {
+                    rasterizer.call(-dx, dy, MakePxDrawerType(1, 0, 0, -1){
                         .r = this,
-                        .x0 = x0,
-                        .y0 = y0,
+                        .x0 = x1,
+                        .y0 = y1,
                     }, color);
                 } else {
-                    rasterizer.call(-dy, -dx, MakePxDrawerType(0, -1, -1, 0){
+                    rasterizer.call(dy, -dx, MakePxDrawerType(0, 1, -1, 0){
                         .r = this,
-                        .x0 = x0,
-                        .y0 = y0,
+                        .x0 = x1,
+                        .y0 = y1,
                     }, color);
                 }
             }
@@ -176,9 +194,47 @@ pub const BresenhamRasterizer = struct {
         std.debug.assert(y >= 0);
         std.debug.assert(y <= x);
 
-        for (0..(@as(usize, @intCast(x)) + 1)) |idx| {
-            const i: i32 = @intCast(idx);
+        var i: i32 = 0;
+        while (i <= x) {
+            defer i += 1;
+
             const n = @divFloor(2 * i * y + x, 2 * x);
+            pxdrawer.call(i, n, color);
+        }
+    }
+};
+
+// 0 if x=0
+fn signi32(x: i32) i32 {
+    const p: i32 = @intFromBool(x > 0);
+    const n: i32 = @intFromBool(x < 0);
+    return p - n;
+}
+
+pub const ModifiedBresenhamRasterizer = struct {
+    pub fn call(x: i32, y: i32, pxdrawer: anytype, color: RGBA) void {
+        std.debug.assert(x >= 0);
+        std.debug.assert(y >= 0);
+        std.debug.assert(y <= x);
+
+        pxdrawer.call(0, 0, color);
+        pxdrawer.call(x, y, color);
+
+        config.stdout.print("{d}\n", .{@as(usize, @intCast(x))}) catch unreachable;
+
+        var i: i32 = 1;
+        while (i < x) {
+            defer i += 1;
+
+            const n = @divFloor(2 * i * y + x, 2 * x);
+            const dn = signi32(i * y - n * x);
+            const np = n + dn;
+
+            const sat = blk: {
+                break :blk 0.5;
+            };
+
+            pxdrawer.call(i, np, MixColors(color, RGBA_WHITE, sat));
             pxdrawer.call(i, n, color);
         }
     }

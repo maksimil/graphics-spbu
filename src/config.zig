@@ -30,6 +30,6 @@ pub fn ScalarMod(x: Scalar, y: Scalar) Scalar {
     return x - y * @floor(x / y);
 }
 
-// pub fn ToScalar(x: anytype) Scalar {
-//     return @as(Scalar, @floatFromInt(x));
-// }
+pub fn ToScalar(x: anytype) Scalar {
+    return @as(Scalar, @floatFromInt(x));
+}
