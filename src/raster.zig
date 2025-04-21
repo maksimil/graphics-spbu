@@ -21,6 +21,12 @@ fn MixColors(a: RGBA, b: RGBA, a_ratio: config.Scalar) RGBA {
     };
 }
 
+fn ClampAdd(x: u8, y: u8) u8 {
+    const sum = x +% y;
+    const overflow: u8 = @intFromBool(y > 255 - x);
+    return sum * (1 - overflow) + 255 * overflow;
+}
+
 pub const Raster = struct {
     data: []render.RGBA,
     width: i32,
@@ -44,6 +50,19 @@ pub const Raster = struct {
         std.debug.assert(y < this.height);
 
         this.data[@intCast(x + y * this.width)] = rgba;
+    }
+
+    pub fn add_px(this: @This(), x: i32, y: i32, rgba: RGBA) void {
+        std.debug.assert(x >= 0);
+        std.debug.assert(y >= 0);
+        std.debug.assert(x < this.width);
+        std.debug.assert(y < this.height);
+
+        const prev_rgba = &this.data[@intCast(x + y * this.width)];
+        prev_rgba.r = 255 - ClampAdd(255 - prev_rgba.r, 255 - rgba.r);
+        prev_rgba.g = 255 - ClampAdd(255 - prev_rgba.g, 255 - rgba.g);
+        prev_rgba.b = 255 - ClampAdd(255 - prev_rgba.b, 255 - rgba.b);
+        prev_rgba.a = ClampAdd(prev_rgba.a, rgba.a);
     }
 
     pub fn rasterize_line(
@@ -179,7 +198,7 @@ fn MakePxDrawerType(
         y0: i32,
 
         pub fn call(this: @This(), i: i32, n: i32, color: RGBA) void {
-            this.r.draw_px(
+            this.r.add_px(
                 this.x0 + xi * i + xn * n,
                 this.y0 + yi * i + yn * n,
                 color,
@@ -194,8 +213,11 @@ pub const BresenhamRasterizer = struct {
         std.debug.assert(y >= 0);
         std.debug.assert(y <= x);
 
-        var i: i32 = 0;
-        while (i <= x) {
+        pxdrawer.call(0, 0, color);
+        pxdrawer.call(x, y, color);
+
+        var i: i32 = 1;
+        while (i < x) {
             defer i += 1;
 
             const n = @divFloor(2 * i * y + x, 2 * x);
@@ -220,21 +242,31 @@ pub const ModifiedBresenhamRasterizer = struct {
         pxdrawer.call(0, 0, color);
         pxdrawer.call(x, y, color);
 
-        config.stdout.print("{d}\n", .{@as(usize, @intCast(x))}) catch unreachable;
-
         var i: i32 = 1;
         while (i < x) {
             defer i += 1;
 
             const n = @divFloor(2 * i * y + x, 2 * x);
-            const dn = signi32(i * y - n * x);
-            const np = n + dn;
+            const diff = i * y - x * n;
+            const dn = signi32(diff);
 
             const sat = blk: {
-                break :blk 0.5;
+                const sat1_denominator_check =
+                    @intFromBool(2 * x * y == config.Sqr(diff - dn * y));
+                const sat1 = config.ToScalar(config.Sqr(diff)) /
+                    config.ToScalar(2 * x * y - config.Sqr(diff - dn * y) +
+                        sat1_denominator_check);
+                const sat2 = config.ToScalar(2 * @as(i32, @intCast(@abs(diff))) - y) /
+                    config.ToScalar(2 * x);
+
+                const is_sat1 = dn * diff <= y;
+
+                break :blk (sat1 * config.ToScalar(@intFromBool(is_sat1)) +
+                    sat2 * config.ToScalar(@intFromBool(!is_sat1))) *
+                    config.ToScalar(@intFromBool(dn != 0));
             };
 
-            pxdrawer.call(i, np, MixColors(color, RGBA_WHITE, sat));
+            pxdrawer.call(i, n + dn, MixColors(color, RGBA_WHITE, sat));
             pxdrawer.call(i, n, color);
         }
     }

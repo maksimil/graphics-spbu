@@ -33,3 +33,7 @@ pub fn ScalarMod(x: Scalar, y: Scalar) Scalar {
 pub fn ToScalar(x: anytype) Scalar {
     return @as(Scalar, @floatFromInt(x));
 }
+
+pub fn Sqr(x: anytype) @TypeOf(x) {
+    return x * x;
+}
