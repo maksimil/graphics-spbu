@@ -87,7 +87,7 @@ fn ParseObjLine(line: []const u8, obj_data: *ObjData) !void {
         var face: ObjFace = .{ 0, 0, 0 };
 
         if (i >= line.len) {
-            return ParseObjError.Vertex;
+            return ParseObjError.Face;
         }
         i += 1;
         j = IdxTo(line, i, ' ');
@@ -95,7 +95,7 @@ fn ParseObjLine(line: []const u8, obj_data: *ObjData) !void {
         i = j;
 
         if (i >= line.len) {
-            return ParseObjError.Vertex;
+            return ParseObjError.Face;
         }
         i += 1;
         j = IdxTo(line, i, ' ');
@@ -103,7 +103,7 @@ fn ParseObjLine(line: []const u8, obj_data: *ObjData) !void {
         i = j;
 
         if (i >= line.len) {
-            return ParseObjError.Vertex;
+            return ParseObjError.Face;
         }
         i += 1;
         j = IdxTo(line, i, ' ');

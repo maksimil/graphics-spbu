@@ -271,3 +271,28 @@ pub const ModifiedBresenhamRasterizer = struct {
         }
     }
 };
+
+pub const XiaolinWuRasterizer = struct {
+    pub fn call(x: i32, y: i32, pxdrawer: anytype, color: RGBA) void {
+        std.debug.assert(x >= 0);
+        std.debug.assert(y >= 0);
+        std.debug.assert(y <= x);
+
+        pxdrawer.call(0, 0, color);
+        pxdrawer.call(x, y, color);
+
+        var i: i32 = 1;
+        while (i < x) {
+            defer i += 1;
+
+            const n = @divFloor(2 * i * y + x, 2 * x);
+            const diff = i * y - x * n;
+            const dn = signi32(diff);
+
+            const sat = config.ToScalar(dn * diff) / config.ToScalar(x);
+
+            pxdrawer.call(i, n + dn, MixColors(color, RGBA_WHITE, sat));
+            pxdrawer.call(i, n, MixColors(color, RGBA_WHITE, 1 - sat));
+        }
+    }
+};
