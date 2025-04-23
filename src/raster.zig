@@ -37,35 +37,34 @@ pub const Raster = struct {
         return @This(){ .data = data, .width = width, .height = height };
     }
 
-    pub fn clear(this: @This(), color: RGBA) void {
+    pub fn Clear(this: @This(), color: RGBA) void {
         for (0..@as(usize, @intCast(this.width * this.height))) |i| {
             this.data[i] = color;
         }
     }
 
-    pub fn draw_px(this: @This(), x: i32, y: i32, rgba: RGBA) void {
+    pub fn GetPx(this: @This(), x: i32, y: i32) *RGBA {
         std.debug.assert(x >= 0);
         std.debug.assert(y >= 0);
         std.debug.assert(x < this.width);
         std.debug.assert(y < this.height);
 
-        this.data[@intCast(x + y * this.width)] = rgba;
+        return &this.data[@intCast(x + y * this.width)];
     }
 
-    pub fn add_px(this: @This(), x: i32, y: i32, rgba: RGBA) void {
-        std.debug.assert(x >= 0);
-        std.debug.assert(y >= 0);
-        std.debug.assert(x < this.width);
-        std.debug.assert(y < this.height);
+    pub fn DrawPx(this: @This(), x: i32, y: i32, rgba: RGBA) void {
+        this.GetPx(x, y).* = rgba;
+    }
 
-        const prev_rgba = &this.data[@intCast(x + y * this.width)];
+    pub fn AddPx(this: @This(), x: i32, y: i32, rgba: RGBA) void {
+        const prev_rgba = this.GetPx(x, y);
         prev_rgba.r = 255 - ClampAdd(255 - prev_rgba.r, 255 - rgba.r);
         prev_rgba.g = 255 - ClampAdd(255 - prev_rgba.g, 255 - rgba.g);
         prev_rgba.b = 255 - ClampAdd(255 - prev_rgba.b, 255 - rgba.b);
         prev_rgba.a = ClampAdd(prev_rgba.a, rgba.a);
     }
 
-    pub fn rasterize_line(
+    pub fn RasterizeLine(
         this: @This(),
         rasterizer: anytype,
         x0: i32,
@@ -150,21 +149,21 @@ pub const Raster = struct {
         }
     }
 
-    pub fn rasterize_circle(this: @This(), x0: i32, y0: i32, r: i32, color: RGBA) void {
+    pub fn RasterizeCircle(this: @This(), x0: i32, y0: i32, r: i32, color: RGBA) void {
         var dx: i32 = 0;
         var dy: i32 = r;
         var v: i32 = 4 * r * r - 1;
 
         while (dy >= dx) {
-            this.draw_px(x0 + dx, y0 + dy, color);
-            this.draw_px(x0 - dx, y0 + dy, color);
-            this.draw_px(x0 + dx, y0 - dy, color);
-            this.draw_px(x0 - dx, y0 - dy, color);
+            this.DrawPx(x0 + dx, y0 + dy, color);
+            this.DrawPx(x0 - dx, y0 + dy, color);
+            this.DrawPx(x0 + dx, y0 - dy, color);
+            this.DrawPx(x0 - dx, y0 - dy, color);
 
-            this.draw_px(x0 + dy, y0 + dx, color);
-            this.draw_px(x0 - dy, y0 + dx, color);
-            this.draw_px(x0 + dy, y0 - dx, color);
-            this.draw_px(x0 - dy, y0 - dx, color);
+            this.DrawPx(x0 + dy, y0 + dx, color);
+            this.DrawPx(x0 - dy, y0 + dx, color);
+            this.DrawPx(x0 + dy, y0 - dx, color);
+            this.DrawPx(x0 - dy, y0 - dx, color);
 
             v -= 8 * dx + 4;
 
@@ -176,8 +175,8 @@ pub const Raster = struct {
         }
     }
 
-    pub fn render_out(this: @This(), file_name: [:0]const u8) !void {
-        try render.render_to_file(
+    pub fn RenderOut(this: @This(), file_name: [:0]const u8) !void {
+        try render.RenderToFile(
             file_name,
             @intCast(this.width),
             @intCast(this.height),
@@ -198,7 +197,7 @@ fn MakePxDrawerType(
         y0: i32,
 
         pub fn call(this: @This(), i: i32, n: i32, color: RGBA) void {
-            this.r.add_px(
+            this.r.AddPx(
                 this.x0 + xi * i + xn * n,
                 this.y0 + yi * i + yn * n,
                 color,
@@ -227,7 +226,7 @@ pub const BresenhamRasterizer = struct {
 };
 
 // 0 if x=0
-fn signi32(x: i32) i32 {
+fn Signi32(x: i32) i32 {
     const p: i32 = @intFromBool(x > 0);
     const n: i32 = @intFromBool(x < 0);
     return p - n;
@@ -248,7 +247,7 @@ pub const ModifiedBresenhamRasterizer = struct {
 
             const n = @divFloor(2 * i * y + x, 2 * x);
             const diff = i * y - x * n;
-            const dn = signi32(diff);
+            const dn = Signi32(diff);
 
             const sat = blk: {
                 const sat1_denominator_check =
@@ -287,7 +286,7 @@ pub const XiaolinWuRasterizer = struct {
 
             const n = @divFloor(2 * i * y + x, 2 * x);
             const diff = i * y - x * n;
-            const dn = signi32(diff);
+            const dn = Signi32(diff);
 
             const sat = config.ToScalar(dn * diff) / config.ToScalar(x);
 

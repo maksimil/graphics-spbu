@@ -11,7 +11,7 @@ pub const RenderError = error{
 };
 
 // pixels is in row major format
-pub fn render_to_file(
+pub fn RenderToFile(
     file_name: [:0]const u8,
     width: u32,
     height: u32,

@@ -12,32 +12,6 @@ const kTileHeight = 128;
 const kHTiles = 2;
 const kVTiles = 2;
 
-fn DrawLine(
-    r: raster.Raster,
-    method: anytype,
-    tilex: i32,
-    tiley: i32,
-    v0: read_obj.ObjVertex,
-    v1: read_obj.ObjVertex,
-) void {
-    const x0: i32 = @intFromFloat(@round((v0.z + 1.0) / 2.0 * (kTileWidth - 1)));
-    const y0: i32 = @intFromFloat(@round((-v0.y + 1.0) / 2.0 * (kTileHeight - 1)));
-
-    const x1: i32 = @intFromFloat(@round((v1.z + 1.0) / 2.0 * (kTileWidth - 1)));
-    const y1: i32 = @intFromFloat(@round((-v1.y + 1.0) / 2.0 * (kTileHeight - 1)));
-
-    if (v0.x >= 0.0 or v1.x >= 0.0) {
-        r.rasterize_line(
-            method,
-            x0 + kTileWidth * tilex,
-            y0 + kTileHeight * tiley,
-            x1 + kTileWidth * tilex,
-            y1 + kTileHeight * tiley,
-            raster.RGBA_BLACK,
-        );
-    }
-}
-
 const VertexPair = struct { v0: usize, v1: usize };
 
 const VertexPairSortCompare = struct {
@@ -90,8 +64,12 @@ pub fn Run() !void {
     );
     defer config.allocator.free(data);
 
-    const r = raster.Raster.init(data, kHTiles * kTileWidth, kVTiles * kTileHeight);
-    r.clear(raster.RGBA_WHITE);
+    const r = raster.Raster.init(
+        data,
+        kHTiles * kTileWidth,
+        kVTiles * kTileHeight,
+    );
+    r.Clear(raster.RGBA_WHITE);
 
     for (0..vertex_pairs.items.len) |i| {
         const vtx = vertex_pairs.items[i];
@@ -113,7 +91,7 @@ pub fn Run() !void {
         const y1: i32 = @intFromFloat(@round((-v1.y + 1.0) / 2.0 * (kTileHeight - 1)));
 
         if (v0.x >= 0.0 or v1.x >= 0.0) {
-            r.rasterize_line(
+            r.RasterizeLine(
                 raster.BresenhamRasterizer,
                 x0 + 0 * kTileWidth,
                 y0 + 0 * kTileHeight,
@@ -122,7 +100,7 @@ pub fn Run() !void {
                 raster.RGBA_BLACK,
             );
 
-            r.rasterize_line(
+            r.RasterizeLine(
                 raster.ModifiedBresenhamRasterizer,
                 x0 + 1 * kTileWidth,
                 y0 + 0 * kTileHeight,
@@ -131,7 +109,7 @@ pub fn Run() !void {
                 raster.RGBA_BLACK,
             );
 
-            r.rasterize_line(
+            r.RasterizeLine(
                 raster.XiaolinWuRasterizer,
                 x0 + 0 * kTileWidth,
                 y0 + 1 * kTileHeight,
@@ -142,5 +120,5 @@ pub fn Run() !void {
         }
     }
 
-    try r.render_out("out.png");
+    try r.RenderOut("out.png");
 }
