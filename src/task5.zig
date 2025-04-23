@@ -87,18 +87,13 @@ fn SimpleIterative(r: TileRasterizer, x0: i32, y0: i32) !void {
     const max_size = 1024;
     var idx: usize = 0;
 
-    var k: usize = 0;
     while (neighbours_list.items.len > idx) {
-        config.stdout.print("k={any}, len={any}\n", .{ k, neighbours_list.items.len }) catch unreachable;
-        k += 1;
-
         const size = neighbours_list.items.len - idx;
         for (0..size) |i| {
             const p = neighbours_list.items[idx + i];
             const x = p[0];
             const y = p[1];
             std.debug.assert(std.meta.eql(r.GetPx(x, y).*, fill_color));
-            r.DrawPx(x, y, raster.RGBA_RED);
 
             for (0..4) |j| {
                 const x1 = x +
@@ -117,6 +112,86 @@ fn SimpleIterative(r: TileRasterizer, x0: i32, y0: i32) !void {
                 }
             }
         }
+
+        if (neighbours_list.items.len >= max_size) {
+            const range: [0][2]i32 = .{};
+            try neighbours_list.replaceRange(0, idx + size, &range);
+            idx = 0;
+        } else {
+            idx = idx + size;
+        }
+    }
+}
+
+fn LinedIterative(r: TileRasterizer, x0: i32, y0: i32) !void {
+    const inner_color = r.GetPx(x0, y0).*;
+    const fill_color = raster.RGBA_RED;
+
+    var neighbours_list = std.ArrayList([2]i32).init(config.allocator);
+    defer neighbours_list.deinit();
+
+    try neighbours_list.append(.{ x0, y0 });
+
+    const max_size = 1024;
+    var idx: usize = 0;
+
+    while (neighbours_list.items.len > idx) {
+        const size = neighbours_list.items.len - idx;
+        for (0..size) |i| {
+            const p = neighbours_list.items[idx + i];
+            const x = p[0];
+            const y = p[1];
+
+            // --- fill the line ---
+
+            var j: i32 = 0;
+            while (x - j >= 0 and
+                std.meta.eql(r.GetPx(x - j, y).*, inner_color))
+            {
+                r.DrawPx(x - j, y, fill_color);
+                j += 1;
+            }
+            const xmin = x - j + 1;
+
+            j = 1;
+            while (x + j < kTileWidth and
+                std.meta.eql(r.GetPx(x + j, y).*, inner_color))
+            {
+                r.DrawPx(x + j, y, fill_color);
+                j += 1;
+            }
+            const xmax = x + j - 1;
+
+            // --- move ---
+
+            for (0..2) |l| {
+                const y1 = ([_]i32{ y - 1, y + 1 })[l];
+
+                if (y1 < 0 or y1 >= kTileHeight) {
+                    continue;
+                }
+
+                var x1 = xmin;
+                var flag = true;
+
+                while (x1 <= xmax) {
+                    if (flag and
+                        std.meta.eql(r.GetPx(x1, y1).*, inner_color))
+                    {
+                        try neighbours_list.append(.{ x1, y1 });
+                        flag = false;
+                    } else if (!flag and
+                        !std.meta.eql(r.GetPx(x1, y1).*, inner_color))
+                    {
+                        flag = true;
+                    }
+
+                    x1 += 1;
+                }
+            }
+        }
+
+        // --- cleanup ---
 
         if (neighbours_list.items.len >= max_size) {
             const range: [0][2]i32 = .{};
@@ -199,6 +274,7 @@ pub fn Run() !void {
     }
 
     try SimpleIterative(tile0, 200, 200);
+    try LinedIterative(tile1, 200, 200);
 
     try r.RenderOut("out.png");
 }
