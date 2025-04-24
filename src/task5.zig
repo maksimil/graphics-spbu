@@ -203,6 +203,228 @@ fn LinedIterative(r: TileRasterizer, x0: i32, y0: i32) !void {
     }
 }
 
+fn InterscectingInterval(x0: i32, y0: i32, x1: i32, y1: i32, y: i32) [2]i32 {
+    if (x0 <= x1) {
+        return OrderedIntersectingInterval(x0, y0, x1, y1, y);
+    } else {
+        return OrderedIntersectingInterval(x1, y1, x0, y0, y);
+    }
+}
+
+fn OrderedIntersectingInterval(x0: i32, y0: i32, x1: i32, y1: i32, y: i32) [2]i32 {
+    const dy = y1 - y0;
+    const dx = x1 - x0;
+
+    std.debug.assert(dx >= 0);
+
+    if (dx <= dy or dx <= -dy) {
+        const n = @divFloor(2 * (y - y0) * dx + dy, 2 * dy);
+        return .{ x0 + n, x0 + n };
+    }
+
+    var xlow: i32 = undefined;
+    var xhigh: i32 = undefined;
+
+    if (dy >= 0) {
+        const n = y - y0;
+        const ilow = -@divFloor(-dx * (2 * n - 1), 2 * dy);
+        const ihigh = -@divFloor(-dx * (2 * n + 1), 2 * dy);
+
+        xlow = x0 + ilow;
+        xhigh = x0 + ihigh - 1;
+    } else {
+        std.debug.assert(dy < 0);
+
+        const n = y0 - y;
+        const ilow = -@divFloor(-dx * (2 * n - 1), -2 * dy);
+        const ihigh = -@divFloor(-dx * (2 * n + 1), -2 * dy);
+
+        xlow = x0 + ilow;
+        xhigh = x0 + ihigh - 1;
+    }
+
+    if (y == y0) {
+        xlow = x0;
+    }
+
+    if (y == y1) {
+        xhigh = x1;
+    }
+
+    return .{ xlow, xhigh };
+}
+
+const EdgeInfo = struct {
+    x0: i32,
+    x1: i32,
+    nonborder: bool,
+};
+
+const EdgeInfoSortCompare = struct {
+    pub fn call(this: @This(), lhs: EdgeInfo, rhs: EdgeInfo) bool {
+        _ = this;
+        return lhs.x0 < rhs.x0;
+    }
+};
+
+fn FindEdges(
+    points: []const [2]i32,
+    y: i32,
+    edge_points: *std.ArrayList(EdgeInfo),
+) !void {
+    for (0..points.len) |i| {
+        const p = points[i];
+
+        if (p[1] != y) {
+            // --- process as an edge from the next point ---
+
+            const next_p = points[@mod(i + 1, points.len)];
+
+            if (next_p[1] == y) {
+                // will be processed next
+                continue;
+            }
+
+            if ((p[1] > y and next_p[1] < y) or
+                (p[1] < y and next_p[1] > y))
+            {
+                const interval =
+                    InterscectingInterval(p[0], p[1], next_p[0], next_p[1], y);
+                try edge_points.append(.{
+                    .x0 = interval[0],
+                    .x1 = interval[1],
+                    .nonborder = false,
+                });
+            }
+        } else {
+            // --- process as a point ---
+
+            // find neighbouring edges
+            var j: usize = undefined;
+
+            j = 1;
+            while (points[@mod(i + points.len - j, points.len)][1] == y) {
+                j += 1;
+            }
+            const prev_i = @mod(i + points.len - j, points.len);
+
+            j = 1;
+            while (points[@mod(i + j, points.len)][1] == y) {
+                j += 1;
+            }
+            const next_i = @mod(i + j, points.len);
+
+            const prev_edge = InterscectingInterval(
+                points[prev_i][0],
+                points[prev_i][1],
+                points[@mod(prev_i + 1, points.len)][0],
+                points[@mod(prev_i + 1, points.len)][1],
+                y,
+            );
+
+            const next_edge = InterscectingInterval(
+                points[next_i][0],
+                points[next_i][1],
+                points[@mod(next_i + points.len - 1, points.len)][0],
+                points[@mod(next_i + points.len - 1, points.len)][1],
+                y,
+            );
+
+            // construct the edge
+            const full_edge = [2]i32{
+                @min(prev_edge[0], next_edge[0]),
+                @max(prev_edge[1], next_edge[1]),
+            };
+
+            const nonborder =
+                (points[prev_i][1] > y and points[next_i][1] > y) or
+                (points[prev_i][1] < y and points[next_i][1] < y);
+
+            try edge_points.append(EdgeInfo{
+                .x0 = full_edge[0],
+                .x1 = full_edge[1],
+                .nonborder = nonborder,
+            });
+        }
+    }
+}
+
+fn EdgePointsList(r: TileRasterizer, points: []const [2]i32) !void {
+    const xmin, const xmax, const ymin, const ymax = blk: {
+        var xmin: i32 = points[0][0];
+        var xmax: i32 = points[0][0];
+        var ymin: i32 = points[0][1];
+        var ymax: i32 = points[0][1];
+
+        for (1..points.len) |i| {
+            if (points[i][1] < ymin) {
+                ymin = points[i][1];
+            }
+
+            if (points[i][1] > ymax) {
+                ymax = points[i][1];
+            }
+
+            if (points[i][0] < xmin) {
+                xmin = points[i][0];
+            }
+
+            if (points[i][0] > xmax) {
+                xmax = points[i][0];
+            }
+        }
+
+        break :blk .{ xmin, xmax, ymin, ymax };
+    };
+
+    _ = xmin;
+    _ = xmax;
+
+    if (ymin == ymax)
+        return;
+
+    var edge_points = std.ArrayList(EdgeInfo).init(config.allocator);
+    defer edge_points.deinit();
+
+    var y = ymin;
+    while (y <= ymax) {
+        defer y += 1;
+
+        try FindEdges(points, y, &edge_points);
+
+        std.sort.pdq(
+            EdgeInfo,
+            edge_points.items,
+            EdgeInfoSortCompare{},
+            EdgeInfoSortCompare.call,
+        );
+
+        // if flag is set the interval (edge[i-1].x1, edge[i].x0) is filled
+        var flag = false;
+
+        for (0..edge_points.items.len) |i| {
+            const this_edge = edge_points.items[i];
+
+            if (flag) {
+                const prev_edge = edge_points.items[i - 1];
+
+                var x = prev_edge.x1 + 1;
+                while (x <= this_edge.x0 - 1) {
+                    r.DrawPx(x, y, raster.RGBA_RED);
+                    x += 1;
+                }
+            }
+
+            // if (!this_edge.nonborder) {
+            //     flag = !flag;
+            // }
+            flag = flag == this_edge.nonborder;
+        }
+
+        edge_points.clearRetainingCapacity();
+    }
+}
+
 pub fn Run() !void {
     const raster_data = try config.allocator.alloc(
         render.RGBA,
@@ -251,7 +473,11 @@ pub fn Run() !void {
         .{ 200, 100 },
         .{ 250, 75 },
         .{ 450, 200 },
+        .{ 400, 300 },
+        .{ 350, 300 },
         .{ 300, 400 },
+        .{ 250, 250 },
+        .{ 200, 250 },
         .{ 100, 300 },
     };
 
@@ -275,6 +501,7 @@ pub fn Run() !void {
 
     try SimpleIterative(tile0, 200, 200);
     try LinedIterative(tile1, 200, 200);
+    try EdgePointsList(tile2, &region);
 
     try r.RenderOut("out.png");
 }
