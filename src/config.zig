@@ -12,8 +12,11 @@ pub var stdout: std.fs.File.Writer = undefined;
 pub var stderr: std.fs.File.Writer = undefined;
 var gpa: std.heap.GeneralPurposeAllocator(.{}) = undefined;
 pub var allocator: std.mem.Allocator = undefined;
+pub var prng: std.Random.DefaultPrng = undefined;
 
 pub fn RuntimeInitialize() void {
+    prng = std.Random.DefaultPrng.init(42);
+
     stdout = std.io.getStdOut().writer();
     stderr = std.io.getStdErr().writer();
 

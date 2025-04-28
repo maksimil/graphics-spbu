@@ -8,7 +8,7 @@ const kTileHeight = 512;
 const kHTiles = 2;
 const kVTiles = 2;
 
-const TileRasterizer = struct {
+pub const TileRasterizer = struct {
     r: raster.Raster,
 
     xoffset: i32,
@@ -30,6 +30,14 @@ const TileRasterizer = struct {
             .xsize = xsize,
             .ysize = ysize,
         };
+    }
+
+    pub fn GetWdith(this: @This()) i32 {
+        return this.xsize;
+    }
+
+    pub fn GetHeight(this: @This()) i32 {
+        return this.ysize;
     }
 
     pub fn GetPx(this: @This(), x: i32, y: i32) *render.RGBA {
@@ -74,9 +82,13 @@ const TileRasterizer = struct {
     }
 };
 
-fn SimpleIterative(r: TileRasterizer, x0: i32, y0: i32) !void {
+pub fn SimpleIterative(
+    r: TileRasterizer,
+    x0: i32,
+    y0: i32,
+    fill_color: render.RGBA,
+) !void {
     const inner_color = r.GetPx(x0, y0).*;
-    const fill_color = raster.RGBA_RED;
 
     var neighbours_list = std.ArrayList([2]i32).init(config.allocator);
     defer neighbours_list.deinit();
@@ -103,8 +115,8 @@ fn SimpleIterative(r: TileRasterizer, x0: i32, y0: i32) !void {
                     @as(i32, @intFromBool(j == 1)) -
                     @as(i32, @intFromBool(j == 3));
 
-                if (x1 >= 0 and x1 < kTileWidth and
-                    y1 >= 0 and y1 < kTileHeight and
+                if (x1 >= 0 and x1 < r.GetWdith() and
+                    y1 >= 0 and y1 < r.GetHeight() and
                     std.meta.eql(r.GetPx(x1, y1).*, inner_color))
                 {
                     try neighbours_list.append(.{ x1, y1 });
@@ -123,9 +135,13 @@ fn SimpleIterative(r: TileRasterizer, x0: i32, y0: i32) !void {
     }
 }
 
-fn LinedIterative(r: TileRasterizer, x0: i32, y0: i32) !void {
+pub fn LinedIterative(
+    r: TileRasterizer,
+    x0: i32,
+    y0: i32,
+    fill_color: render.RGBA,
+) !void {
     const inner_color = r.GetPx(x0, y0).*;
-    const fill_color = raster.RGBA_RED;
 
     var neighbours_list = std.ArrayList([2]i32).init(config.allocator);
     defer neighbours_list.deinit();
@@ -154,7 +170,7 @@ fn LinedIterative(r: TileRasterizer, x0: i32, y0: i32) !void {
             const xmin = x - j + 1;
 
             j = 1;
-            while (x + j < kTileWidth and
+            while (x + j < r.GetWdith() and
                 std.meta.eql(r.GetPx(x + j, y).*, inner_color))
             {
                 r.DrawPx(x + j, y, fill_color);
@@ -167,7 +183,7 @@ fn LinedIterative(r: TileRasterizer, x0: i32, y0: i32) !void {
             for (0..2) |l| {
                 const y1 = ([_]i32{ y - 1, y + 1 })[l];
 
-                if (y1 < 0 or y1 >= kTileHeight) {
+                if (y1 < 0 or y1 >= r.GetHeight()) {
                     continue;
                 }
 
@@ -330,7 +346,12 @@ fn GetEdgeInfo(points: []const [2]i32, y: i32, i: usize) ?EdgeInfo {
     }
 }
 
-fn FillBetweenEdges(r: TileRasterizer, y: i32, edge_points: []EdgeInfo) void {
+fn FillBetweenEdges(
+    r: TileRasterizer,
+    y: i32,
+    edge_points: []EdgeInfo,
+    fill_color: render.RGBA,
+) void {
     const SortStruct = struct {
         pub fn call(this: @This(), lhs: EdgeInfo, rhs: EdgeInfo) bool {
             _ = this;
@@ -356,7 +377,7 @@ fn FillBetweenEdges(r: TileRasterizer, y: i32, edge_points: []EdgeInfo) void {
 
             var x = prev_edge.x1 + 1;
             while (x <= this_edge.x0 - 1) {
-                r.DrawPx(x, y, raster.RGBA_RED);
+                r.DrawPx(x, y, fill_color);
                 x += 1;
             }
         }
@@ -368,7 +389,11 @@ fn FillBetweenEdges(r: TileRasterizer, y: i32, edge_points: []EdgeInfo) void {
     }
 }
 
-fn EdgePointsList(r: TileRasterizer, points: []const [2]i32) !void {
+pub fn EdgePointsList(
+    r: TileRasterizer,
+    points: []const [2]i32,
+    fill_color: render.RGBA,
+) !void {
     const ymin, const ymax = blk: {
         var ymin: i32 = points[0][1];
         var ymax: i32 = points[0][1];
@@ -403,13 +428,17 @@ fn EdgePointsList(r: TileRasterizer, points: []const [2]i32) !void {
             }
         }
 
-        FillBetweenEdges(r, y, edge_points.items);
+        FillBetweenEdges(r, y, edge_points.items, fill_color);
 
         edge_points.clearRetainingCapacity();
     }
 }
 
-fn ActiveEdgeList(r: TileRasterizer, points: []const [2]i32) !void {
+pub fn ActiveEdgeList(
+    r: TileRasterizer,
+    points: []const [2]i32,
+    fill_color: render.RGBA,
+) !void {
     const ymin, const ymax = blk: {
         var ymin: i32 = points[0][1];
         var ymax: i32 = points[0][1];
@@ -487,7 +516,7 @@ fn ActiveEdgeList(r: TileRasterizer, points: []const [2]i32) !void {
             }
         }
 
-        FillBetweenEdges(r, y, edge_points.items);
+        FillBetweenEdges(r, y, edge_points.items, fill_color);
 
         edge_points.clearRetainingCapacity();
 
@@ -575,10 +604,10 @@ pub fn Run() !void {
         }
     }
 
-    try SimpleIterative(tile0, 200, 200);
-    try LinedIterative(tile1, 200, 200);
-    try EdgePointsList(tile2, &region);
-    try ActiveEdgeList(tile3, &region);
+    try SimpleIterative(tile0, 200, 200, raster.RGBA_RED);
+    try LinedIterative(tile1, 200, 200, raster.RGBA_RED);
+    try EdgePointsList(tile2, &region, raster.RGBA_RED);
+    try ActiveEdgeList(tile3, &region, raster.RGBA_RED);
 
     try r.RenderOut("out.png");
 }
