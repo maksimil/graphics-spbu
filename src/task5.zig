@@ -260,99 +260,116 @@ const EdgeInfo = struct {
     nonborder: bool,
 };
 
-const EdgeInfoSortCompare = struct {
-    pub fn call(this: @This(), lhs: EdgeInfo, rhs: EdgeInfo) bool {
-        _ = this;
-        return lhs.x0 < rhs.x0;
+fn GetEdgeInfo(points: []const [2]i32, y: i32, i: usize) ?EdgeInfo {
+    const p = points[i];
+
+    const next_p = points[@mod(i + 1, points.len)];
+
+    if (next_p[1] == y) {
+        // will be processed next
+        return null;
     }
-};
 
-fn FindEdges(
-    points: []const [2]i32,
-    y: i32,
-    edge_points: *std.ArrayList(EdgeInfo),
-) !void {
-    for (0..points.len) |i| {
-        const p = points[i];
+    if (p[1] != y) {
+        // --- process as an edge to the next point ---
 
-        if (p[1] != y) {
-            // --- process as an edge from the next point ---
-
-            const next_p = points[@mod(i + 1, points.len)];
-
-            if (next_p[1] == y) {
-                // will be processed next
-                continue;
-            }
-
-            if ((p[1] > y and next_p[1] < y) or
-                (p[1] < y and next_p[1] > y))
-            {
-                const interval =
-                    InterscectingInterval(p[0], p[1], next_p[0], next_p[1], y);
-                try edge_points.append(.{
-                    .x0 = interval[0],
-                    .x1 = interval[1],
-                    .nonborder = false,
-                });
-            }
-        } else {
-            // --- process as a point ---
-
-            // find neighbouring edges
-            var j: usize = undefined;
-
-            j = 1;
-            while (points[@mod(i + points.len - j, points.len)][1] == y) {
-                j += 1;
-            }
-            const prev_i = @mod(i + points.len - j, points.len);
-
-            j = 1;
-            while (points[@mod(i + j, points.len)][1] == y) {
-                j += 1;
-            }
-            const next_i = @mod(i + j, points.len);
-
-            const prev_edge = InterscectingInterval(
-                points[prev_i][0],
-                points[prev_i][1],
-                points[@mod(prev_i + 1, points.len)][0],
-                points[@mod(prev_i + 1, points.len)][1],
-                y,
-            );
-
-            const next_edge = InterscectingInterval(
-                points[next_i][0],
-                points[next_i][1],
-                points[@mod(next_i + points.len - 1, points.len)][0],
-                points[@mod(next_i + points.len - 1, points.len)][1],
-                y,
-            );
-
-            // construct the edge
-            const full_edge = [2]i32{
-                @min(prev_edge[0], next_edge[0]),
-                @max(prev_edge[1], next_edge[1]),
+        if ((p[1] > y and next_p[1] < y) or
+            (p[1] < y and next_p[1] > y))
+        {
+            const interval =
+                InterscectingInterval(p[0], p[1], next_p[0], next_p[1], y);
+            return .{
+                .x0 = interval[0],
+                .x1 = interval[1],
+                .nonborder = false,
             };
-
-            const nonborder =
-                (points[prev_i][1] > y and points[next_i][1] > y) or
-                (points[prev_i][1] < y and points[next_i][1] < y);
-
-            try edge_points.append(EdgeInfo{
-                .x0 = full_edge[0],
-                .x1 = full_edge[1],
-                .nonborder = nonborder,
-            });
+        } else {
+            return null;
         }
+    } else {
+        // --- process as a point ---
+
+        // find previous edge
+        var j: usize = 1;
+        while (points[@mod(i + points.len - j, points.len)][1] == y) {
+            j += 1;
+        }
+        const prev_i = @mod(i + points.len - j, points.len);
+
+        const prev_edge = InterscectingInterval(
+            points[prev_i][0],
+            points[prev_i][1],
+            points[@mod(prev_i + 1, points.len)][0],
+            points[@mod(prev_i + 1, points.len)][1],
+            y,
+        );
+
+        const next_edge = InterscectingInterval(
+            next_p[0],
+            next_p[1],
+            p[0],
+            p[1],
+            y,
+        );
+
+        // construct the edge
+        const full_edge = [2]i32{
+            @min(prev_edge[0], next_edge[0]),
+            @max(prev_edge[1], next_edge[1]),
+        };
+
+        const nonborder =
+            (points[prev_i][1] > y and next_p[1] > y) or
+            (points[prev_i][1] < y and next_p[1] < y);
+
+        return .{
+            .x0 = full_edge[0],
+            .x1 = full_edge[1],
+            .nonborder = nonborder,
+        };
+    }
+}
+
+fn FillBetweenEdges(r: TileRasterizer, y: i32, edge_points: []EdgeInfo) void {
+    const SortStruct = struct {
+        pub fn call(this: @This(), lhs: EdgeInfo, rhs: EdgeInfo) bool {
+            _ = this;
+            return lhs.x0 < rhs.x0;
+        }
+    };
+
+    std.sort.pdq(
+        EdgeInfo,
+        edge_points,
+        SortStruct{},
+        SortStruct.call,
+    );
+
+    // if flag is set the interval (edge[i-1].x1, edge[i].x0) is filled
+    var flag = false;
+
+    for (0..edge_points.len) |i| {
+        const this_edge = edge_points[i];
+
+        if (flag) {
+            const prev_edge = edge_points[i - 1];
+
+            var x = prev_edge.x1 + 1;
+            while (x <= this_edge.x0 - 1) {
+                r.DrawPx(x, y, raster.RGBA_RED);
+                x += 1;
+            }
+        }
+
+        // if (!this_edge.nonborder) {
+        //     flag = !flag;
+        // }
+        flag = flag == this_edge.nonborder;
     }
 }
 
 fn EdgePointsList(r: TileRasterizer, points: []const [2]i32) !void {
-    const xmin, const xmax, const ymin, const ymax = blk: {
-        var xmin: i32 = points[0][0];
-        var xmax: i32 = points[0][0];
+    const ymin, const ymax = blk: {
         var ymin: i32 = points[0][1];
         var ymax: i32 = points[0][1];
 
@@ -364,21 +381,10 @@ fn EdgePointsList(r: TileRasterizer, points: []const [2]i32) !void {
             if (points[i][1] > ymax) {
                 ymax = points[i][1];
             }
-
-            if (points[i][0] < xmin) {
-                xmin = points[i][0];
-            }
-
-            if (points[i][0] > xmax) {
-                xmax = points[i][0];
-            }
         }
 
-        break :blk .{ xmin, xmax, ymin, ymax };
+        break :blk .{ ymin, ymax };
     };
-
-    _ = xmin;
-    _ = xmax;
 
     if (ymin == ymax)
         return;
@@ -390,38 +396,108 @@ fn EdgePointsList(r: TileRasterizer, points: []const [2]i32) !void {
     while (y <= ymax) {
         defer y += 1;
 
-        try FindEdges(points, y, &edge_points);
-
-        std.sort.pdq(
-            EdgeInfo,
-            edge_points.items,
-            EdgeInfoSortCompare{},
-            EdgeInfoSortCompare.call,
-        );
-
-        // if flag is set the interval (edge[i-1].x1, edge[i].x0) is filled
-        var flag = false;
-
-        for (0..edge_points.items.len) |i| {
-            const this_edge = edge_points.items[i];
-
-            if (flag) {
-                const prev_edge = edge_points.items[i - 1];
-
-                var x = prev_edge.x1 + 1;
-                while (x <= this_edge.x0 - 1) {
-                    r.DrawPx(x, y, raster.RGBA_RED);
-                    x += 1;
-                }
+        for (0..points.len) |i| {
+            const maybe_info = GetEdgeInfo(points, y, i);
+            if (maybe_info) |info| {
+                try edge_points.append(info);
             }
-
-            // if (!this_edge.nonborder) {
-            //     flag = !flag;
-            // }
-            flag = flag == this_edge.nonborder;
         }
 
+        FillBetweenEdges(r, y, edge_points.items);
+
         edge_points.clearRetainingCapacity();
+    }
+}
+
+fn ActiveEdgeList(r: TileRasterizer, points: []const [2]i32) !void {
+    const ymin, const ymax = blk: {
+        var ymin: i32 = points[0][1];
+        var ymax: i32 = points[0][1];
+
+        for (1..points.len) |i| {
+            if (points[i][1] < ymin) {
+                ymin = points[i][1];
+            }
+
+            if (points[i][1] > ymax) {
+                ymax = points[i][1];
+            }
+        }
+
+        break :blk .{ ymin, ymax };
+    };
+
+    if (ymin == ymax)
+        return;
+
+    // edge is points[idx]->points[idx+1]
+    var first_active: usize = 0;
+    var sorted_edges = std.ArrayList(usize).init(config.allocator);
+    defer sorted_edges.deinit();
+
+    try sorted_edges.resize(points.len);
+    for (0..points.len) |i| {
+        sorted_edges.items[i] = i;
+    }
+
+    const SortStruct = struct {
+        points: []const [2]i32,
+
+        fn edge_min_y(this: @This(), i: usize) i32 {
+            const y0 = this.points[i][1];
+            const y1 = this.points[@mod(i + 1, this.points.len)][1];
+            return @min(y0, y1);
+        }
+
+        pub fn call(this: @This(), lhs: usize, rhs: usize) bool {
+            return this.edge_min_y(lhs) < this.edge_min_y(rhs);
+        }
+    };
+    const sort_struct = SortStruct{ .points = points };
+    std.sort.pdq(
+        usize,
+        sorted_edges.items,
+        sort_struct,
+        SortStruct.call,
+    );
+
+    std.debug.assert(points[sorted_edges.items[0]][1] == ymin);
+
+    var edge_points = std.ArrayList(EdgeInfo).init(config.allocator);
+    defer edge_points.deinit();
+
+    var y = ymin;
+    while (y <= ymax) {
+        // --- process active edges ---
+
+        var k = first_active;
+        std.debug.assert(sort_struct.edge_min_y(sorted_edges.items[k]) <= y);
+        while (k < sorted_edges.items.len) {
+            defer k += 1;
+
+            const i = sorted_edges.items[k];
+
+            if (sort_struct.edge_min_y(i) > y) {
+                break;
+            }
+
+            const maybe_info = GetEdgeInfo(points, y, i);
+            if (maybe_info) |info| {
+                try edge_points.append(info);
+            }
+        }
+
+        FillBetweenEdges(r, y, edge_points.items);
+
+        edge_points.clearRetainingCapacity();
+
+        // --- update first_active ---
+        y += 1;
+
+        while (sort_struct.edge_min_y(sorted_edges.items[first_active]) > y) {
+            first_active += 1;
+            std.debug.assert(first_active < sorted_edges.items.len);
+        }
     }
 }
 
@@ -502,6 +578,7 @@ pub fn Run() !void {
     try SimpleIterative(tile0, 200, 200);
     try LinedIterative(tile1, 200, 200);
     try EdgePointsList(tile2, &region);
+    try ActiveEdgeList(tile3, &region);
 
     try r.RenderOut("out.png");
 }
