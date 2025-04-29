@@ -214,27 +214,83 @@ fn LiangBarskyClip(
     }
 }
 
-// fn CyrusBeckClip(
-//     region: [][2]i32,
-//     x0_: i32,
-//     y0_: i32,
-//     x1_: i32,
-//     y1_: i32,
-// ) ?Edge {
-//     var x0 = x0_;
-//     var y0 = y0_;
-//     var x1 = x1_;
-//     var y1 = y1_;
-//
-//     const dx = x1 - x0;
-//     const dy = y1 - y0;
-//
-//     if (dx == 0 and dy == 0) {
-//
-//     }
-//
-//     return null;
-// }
+fn CyrusBeckClip(
+    region: []const [2]i32,
+    x0: i32,
+    y0: i32,
+    x1: i32,
+    y1: i32,
+) ?Edge {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+
+    var u: i32 = undefined;
+    var v: i32 = undefined;
+    var tlen: i32 = undefined;
+
+    if (dx == 0 or dy == 0) {
+        u = @intFromBool(dx != 0);
+        v = @intFromBool(dy != 0);
+        tlen = dx + dy;
+    } else {
+        u = dy;
+        v = dx;
+        tlen = dx * dy;
+    }
+
+    var tmin: i32 = @min(0, tlen);
+    var tmax: i32 = @max(0, tlen);
+
+    for (0..region.len) |i| {
+        const p0 = region[i];
+        const p1 = region[@mod(i + 1, region.len)];
+
+        const rhs = p1[1] * p0[0] - p0[1] * p1[0] +
+            (p0[1] - p1[1]) * x0 + (p1[0] - p0[0]) * y0;
+
+        var p: i32 = 0;
+        var q: i32 = 0;
+
+        if (u != 0 and v != 0) {
+            p = (p1[1] - p0[1]) * v + (p0[0] - p1[0]) * u;
+            q = u * v;
+        } else if (u != 0) {
+            p = p1[1] - p0[1];
+            q = u;
+        } else if (v != 0) {
+            p = p0[0] - p1[0];
+            q = v;
+        }
+
+        if (p == 0) {
+            if (rhs > 0) {
+                return null;
+            } else {
+                continue;
+            }
+        }
+
+        std.debug.assert(p != 0);
+        std.debug.assert(q != 0);
+
+        if (p * q < 0) {
+            tmax = @min(tmax, DivRound(rhs * q, p));
+        } else {
+            tmin = @max(tmin, DivRound(rhs * q, p));
+        }
+    }
+
+    if (tmin <= tmax) {
+        return .{
+            .x0 = x0 + SafeDivRound(tmin, u),
+            .y0 = y0 + SafeDivRound(tmin, v),
+            .x1 = x0 + SafeDivRound(tmax, u),
+            .y1 = y0 + SafeDivRound(tmax, v),
+        };
+    } else {
+        return null;
+    }
+}
 
 fn DrawRegionBorder(r: raster.Raster, points: []const [2]i32) void {
     r.RasterizeLine(
@@ -326,8 +382,8 @@ pub fn Run() !void {
     });
 
     const triangle_region = [_][2]i32{
-        .{ 100, 150 },
         .{ 180, 200 },
+        .{ 100, 150 },
         .{ 50, 200 },
     };
     DrawRegionBorder(r, &triangle_region);
@@ -363,7 +419,7 @@ pub fn Run() !void {
 
             MaybeRasterize(r, LiangBarskyClip(25, 25, 100, 100, x0, y0, x1, y1));
             MaybeRasterize(r, CohenSutherlandClip(150, 50, 70, 100, x0, y0, x1, y1));
-            // MaybeRasterize(r, CyrusBeckClip(&triangle_region, x0, y0, x1, y1));
+            MaybeRasterize(r, CyrusBeckClip(&triangle_region, x0, y0, x1, y1));
         }
     }
 
