@@ -8,6 +8,8 @@ const kObjFilePath = "materials/african_head.obj";
 const kWidth = 256;
 const kHeight = 256;
 
+const Signi32 = config.Signi32;
+
 const VertexPair = struct { v0: usize, v1: usize };
 
 const VertexPairSortCompare = struct {
@@ -134,84 +136,79 @@ fn ClipT(tlen: i32, p: []const i32, q: []const i32) [2]i32 {
     return .{ tmin, tmax };
 }
 
+fn SafeDivRound(x: i32, y: i32) i32 {
+    if (y == 0) {
+        return 0;
+    } else {
+        return DivRound(x, y);
+    }
+}
+
 fn LiangBarskyClip(
     xoffset: i32,
     yoffset: i32,
     xsize: i32,
     ysize: i32,
-    x0_: i32,
-    y0_: i32,
-    x1_: i32,
-    y1_: i32,
+    x0: i32,
+    y0: i32,
+    x1: i32,
+    y1: i32,
 ) ?Edge {
-    var x0 = x0_;
-    var y0 = y0_;
-    var x1 = x1_;
-    var y1 = y1_;
-
     const dx = x1 - x0;
     const dy = y1 - y0;
 
-    if (dx == 0 and dy == 0) {
-        if (x0 >= xoffset and x0 <= xoffset + xsize and
-            y0 >= yoffset and y0 <= yoffset + ysize)
-        {
-            return .{ .x0 = x0, .y0 = y0, .x1 = x1, .y1 = y1 };
-        } else {
-            return null;
-        }
-    } else if (dx == 0) {
-        if (!(x0 >= xoffset and x0 <= xoffset + xsize)) {
-            return null;
-        }
+    var u: i32 = undefined;
+    var v: i32 = undefined;
+    var tlen: i32 = undefined;
 
-        if (dy < 0) {
-            std.mem.swap(i32, &y0, &y1);
-        }
-
-        if (y0 <= yoffset + ysize and y1 >= yoffset) {
-            y0 = @max(y0, yoffset);
-            y1 = @min(y1, yoffset + ysize);
-            return .{ .x0 = x0, .y0 = y0, .x1 = x1, .y1 = y1 };
-        } else {
-            return null;
-        }
-    } else if (dy == 0) {
-        if (!(y0 >= yoffset and y0 <= yoffset + xsize)) {
-            return null;
-        }
-
-        if (dx < 0) {
-            std.mem.swap(i32, &x0, &x1);
-        }
-
-        if (x0 <= xoffset + xsize and x1 >= xoffset) {
-            x0 = @max(x0, xoffset);
-            x1 = @min(x1, xoffset + xsize);
-            return .{ .x0 = x0, .y0 = y0, .x1 = x1, .y1 = y1 };
-        } else {
-            return null;
-        }
+    if (dx == 0 or dy == 0) {
+        u = @intFromBool(dx != 0);
+        v = @intFromBool(dy != 0);
+        tlen = dx + dy;
+    } else {
+        u = dy;
+        v = dx;
+        tlen = dx * dy;
     }
 
-    const p = [_]i32{ dx, -dx, dy, -dy };
+    var p: [4]i32 = undefined;
+    var q: [4]i32 = undefined;
 
-    const q = [_]i32{
-        yoffset + ysize - y0,
-        y0 - yoffset,
-        xoffset + xsize - x0,
-        x0 - xoffset,
-    };
+    var plen: usize = 0;
 
-    const tmin, const tmax = ClipT(dx * dy, &p, &q);
+    if (u == 0) {
+        if (x0 < xoffset or x0 > xoffset + xsize) {
+            return null;
+        }
+    } else {
+        p[plen] = u;
+        q[plen] = xoffset + xsize - x0;
+        p[plen + 1] = -u;
+        q[plen + 1] = x0 - xoffset;
+        plen += 2;
+    }
+
+    if (v == 0) {
+        if (y0 < yoffset or y0 > yoffset + ysize) {
+            return null;
+        }
+    } else {
+        p[plen] = v;
+        q[plen] = yoffset + ysize - y0;
+        p[plen + 1] = -v;
+        q[plen + 1] = y0 - yoffset;
+        plen += 2;
+    }
+
+    const tmin, const tmax = ClipT(tlen, p[0..plen], q[0..plen]);
 
     if (tmin <= tmax) {
-        x0 = x0_ + DivRound(tmin, dy);
-        x1 = x0_ + DivRound(tmax, dy);
-        y0 = y0_ + DivRound(tmin, dx);
-        y1 = y0_ + DivRound(tmax, dx);
-
-        return .{ .x0 = x0, .y0 = y0, .x1 = x1, .y1 = y1 };
+        return .{
+            .x0 = x0 + SafeDivRound(tmin, u),
+            .y0 = y0 + SafeDivRound(tmin, v),
+            .x1 = x0 + SafeDivRound(tmax, u),
+            .y1 = y0 + SafeDivRound(tmax, v),
+        };
     } else {
         return null;
     }
@@ -232,7 +229,7 @@ fn LiangBarskyClip(
 //     const dx = x1 - x0;
 //     const dy = y1 - y0;
 //
-//     if (dx == 0 or dy == 0) {
+//     if (dx == 0 and dy == 0) {
 //
 //     }
 //

@@ -28,7 +28,8 @@ pub fn RuntimeDeinitialize() void {
     stderr.print("allocator: {}\n", .{gpa.deinit()}) catch unreachable;
 }
 
-// utils
+// --- utils ---
+
 pub fn ScalarMod(x: Scalar, y: Scalar) Scalar {
     return x - y * @floor(x / y);
 }
@@ -39,4 +40,11 @@ pub fn ToScalar(x: anytype) Scalar {
 
 pub fn Sqr(x: anytype) @TypeOf(x) {
     return x * x;
+}
+
+// 0 if x=0
+pub fn Signi32(x: i32) i32 {
+    const p: i32 = @intFromBool(x > 0);
+    const n: i32 = @intFromBool(x < 0);
+    return p - n;
 }

@@ -226,13 +226,6 @@ pub const BresenhamRasterizer = struct {
     }
 };
 
-// 0 if x=0
-fn Signi32(x: i32) i32 {
-    const p: i32 = @intFromBool(x > 0);
-    const n: i32 = @intFromBool(x < 0);
-    return p - n;
-}
-
 pub const ModifiedBresenhamRasterizer = struct {
     pub fn call(x: i32, y: i32, pxdrawer: anytype, color: RGBA) void {
         std.debug.assert(x >= 0);
@@ -248,7 +241,7 @@ pub const ModifiedBresenhamRasterizer = struct {
 
             const n = @divFloor(2 * i * y + x, 2 * x);
             const diff = i * y - x * n;
-            const dn = Signi32(diff);
+            const dn = config.Signi32(diff);
 
             const sat = blk: {
                 const sat1_denominator_check =
@@ -287,7 +280,7 @@ pub const XiaolinWuRasterizer = struct {
 
             const n = @divFloor(2 * i * y + x, 2 * x);
             const diff = i * y - x * n;
-            const dn = Signi32(diff);
+            const dn = config.Signi32(diff);
 
             const sat = config.ToScalar(dn * diff) / config.ToScalar(x);
 
@@ -312,7 +305,7 @@ pub const ModifiedXiaolinWuRasterizer = struct {
 
             const n = @divFloor(2 * i * y + x, 2 * x);
             const diff = i * y - x * n;
-            const dn = Signi32(diff);
+            const dn = config.Signi32(diff);
 
             const sat = config.ToScalar(dn * diff) / config.ToScalar(x);
 
