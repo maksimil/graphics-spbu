@@ -609,5 +609,5 @@ pub fn Run() !void {
     try EdgePointsList(tile2, &region, raster.RGBA_RED);
     try ActiveEdgeList(tile3, &region, raster.RGBA_RED);
 
-    try r.RenderOut("out.png");
+    try r.RenderOut("output/task5.png");
 }

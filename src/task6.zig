@@ -116,5 +116,5 @@ pub fn Run() !void {
         }
     }
 
-    try r.RenderOut("out.png");
+    try r.RenderOut("output/task6.png");
 }

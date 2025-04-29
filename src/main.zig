@@ -1,15 +1,24 @@
 const std = @import("std");
 const config = @import("config.zig");
-// const task1 = @import("task1.zig");
-// const task2 = @import("task2.zig");
-// const task3 = @import("task3.zig");
-// const task4 = @import("task4.zig");
-// const task5 = @import("task5.zig");
+const task1 = @import("task1.zig");
+const task2 = @import("task2.zig");
+const task3 = @import("task3.zig");
+const task4 = @import("task4.zig");
+const task5 = @import("task5.zig");
 const task6 = @import("task6.zig");
+const task7 = @import("task7.zig");
 
 pub fn main() !void {
     config.RuntimeInitialize();
     defer config.RuntimeDeinitialize();
 
+    try std.fs.cwd().makePath("output");
+
+    // try task1.Run();
+    // try task2.Run();
+    try task3.Run();
+    try task4.Run();
+    try task5.Run();
     try task6.Run();
+    try task7.Run();
 }

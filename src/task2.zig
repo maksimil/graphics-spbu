@@ -10,7 +10,7 @@ fn DrawCross(r: Raster, x0: i32, y0: i32, points: []const [2]i32) void {
         const x1 = points[i][0];
         const y1 = points[i][1];
 
-        r.rasterize_line(
+        r.RasterizeLine(
             raster.BresenhamRasterizer,
             x0,
             y0,
@@ -20,14 +20,14 @@ fn DrawCross(r: Raster, x0: i32, y0: i32, points: []const [2]i32) void {
         );
     }
 
-    r.draw_px(x0, y0, raster.RGBA_RED);
+    r.DrawPx(x0, y0, raster.RGBA_RED);
 }
 
 fn DrawCircles(r: Raster, x0: i32, y0: i32, radii: []const i32) void {
-    r.draw_px(x0, y0, raster.RGBA_RED);
+    r.DrawPx(x0, y0, raster.RGBA_RED);
 
     for (0..radii.len) |i| {
-        r.rasterize_circle(x0, y0, radii[i], raster.RGBA_BLACK);
+        r.RasterizeCircle(x0, y0, radii[i], raster.RGBA_BLACK);
     }
 }
 
@@ -37,15 +37,15 @@ fn DrawCircleDDA(ra: Raster, x0: i32, y0: i32, r: i32, color: render.RGBA) void 
 
     while (dy >= @as(f32, @floatFromInt(dx))) {
         const int_dy: i32 = @intFromFloat(@round(dy));
-        ra.draw_px(x0 + dx, y0 + int_dy, color);
-        ra.draw_px(x0 - dx, y0 + int_dy, color);
-        ra.draw_px(x0 + dx, y0 - int_dy, color);
-        ra.draw_px(x0 - dx, y0 - int_dy, color);
+        ra.DrawPx(x0 + dx, y0 + int_dy, color);
+        ra.DrawPx(x0 - dx, y0 + int_dy, color);
+        ra.DrawPx(x0 + dx, y0 - int_dy, color);
+        ra.DrawPx(x0 - dx, y0 - int_dy, color);
 
-        ra.draw_px(x0 + int_dy, y0 + dx, color);
-        ra.draw_px(x0 - int_dy, y0 + dx, color);
-        ra.draw_px(x0 + int_dy, y0 - dx, color);
-        ra.draw_px(x0 - int_dy, y0 - dx, color);
+        ra.DrawPx(x0 + int_dy, y0 + dx, color);
+        ra.DrawPx(x0 - int_dy, y0 + dx, color);
+        ra.DrawPx(x0 + int_dy, y0 - dx, color);
+        ra.DrawPx(x0 - int_dy, y0 - dx, color);
 
         dy += -@as(f32, @floatFromInt(dx)) / dy;
         dx += 1;
@@ -53,7 +53,7 @@ fn DrawCircleDDA(ra: Raster, x0: i32, y0: i32, r: i32, color: render.RGBA) void 
 }
 
 fn DrawCirclesDDA(r: Raster, x0: i32, y0: i32, radii: []const i32) void {
-    r.draw_px(x0, y0, raster.RGBA_RED);
+    r.DrawPx(x0, y0, raster.RGBA_RED);
 
     for (0..radii.len) |i| {
         DrawCircleDDA(r, x0, y0, radii[i], raster.RGBA_BLACK);
@@ -71,20 +71,20 @@ fn DrawCircleParametric(ra: Raster, x0: i32, y0: i32, r: i32, color: render.RGBA
 
         const int_dx: i32 = @intFromFloat(@round(dx));
         const int_dy: i32 = @intFromFloat(@round(dy));
-        ra.draw_px(x0 + int_dx, y0 + int_dy, color);
-        ra.draw_px(x0 - int_dx, y0 + int_dy, color);
-        ra.draw_px(x0 + int_dx, y0 - int_dy, color);
-        ra.draw_px(x0 - int_dx, y0 - int_dy, color);
+        ra.DrawPx(x0 + int_dx, y0 + int_dy, color);
+        ra.DrawPx(x0 - int_dx, y0 + int_dy, color);
+        ra.DrawPx(x0 + int_dx, y0 - int_dy, color);
+        ra.DrawPx(x0 - int_dx, y0 - int_dy, color);
 
-        ra.draw_px(x0 + int_dy, y0 + int_dx, color);
-        ra.draw_px(x0 - int_dy, y0 + int_dx, color);
-        ra.draw_px(x0 + int_dy, y0 - int_dx, color);
-        ra.draw_px(x0 - int_dy, y0 - int_dx, color);
+        ra.DrawPx(x0 + int_dy, y0 + int_dx, color);
+        ra.DrawPx(x0 - int_dy, y0 + int_dx, color);
+        ra.DrawPx(x0 + int_dy, y0 - int_dx, color);
+        ra.DrawPx(x0 - int_dy, y0 - int_dx, color);
     }
 }
 
 fn DrawCirclesParametric(r: Raster, x0: i32, y0: i32, radii: []const i32) void {
-    r.draw_px(x0, y0, raster.RGBA_RED);
+    r.DrawPx(x0, y0, raster.RGBA_RED);
 
     for (0..radii.len) |i| {
         DrawCircleParametric(r, x0, y0, radii[i], raster.RGBA_BLACK);
@@ -92,8 +92,6 @@ fn DrawCirclesParametric(r: Raster, x0: i32, y0: i32, radii: []const i32) void {
 }
 
 pub fn Run() !void {
-    const file_name = "out.png";
-
     const width = 409;
     const height = 409;
     var data = [_]render.RGBA{raster.RGBA_WHITE} ** (width * height);
@@ -189,5 +187,5 @@ pub fn Run() !void {
         DrawCirclesParametric(r, x0, y0, &radii);
     }
 
-    try r.render_out(file_name);
+    try r.RenderOut("output/task2.png");
 }

@@ -16,7 +16,7 @@ fn DrawLine(r: raster.Raster, v0: read_obj.ObjVertex, v1: read_obj.ObjVertex) vo
     const y1: i32 = @intFromFloat(@round((-v1.y + 1.0) / 2.0 * (kWidth - 1)));
 
     if (v0.x >= 0.0 or v1.x >= 0.0)
-        r.rasterize_line(
+        r.RasterizeLine(
             raster.BresenhamRasterizer,
             x0,
             y0,
@@ -38,7 +38,7 @@ pub fn Run() !void {
     defer config.allocator.free(data);
 
     const r = raster.Raster.init(data, kWidth, kHeight);
-    r.clear(raster.RGBA_WHITE);
+    r.Clear(raster.RGBA_WHITE);
 
     for (0..objdata.faces.items.len) |i| {
         const face = objdata.faces.items[i];
@@ -51,5 +51,5 @@ pub fn Run() !void {
         DrawLine(r, v2, v0);
     }
 
-    try r.render_out("out.png");
+    try r.RenderOut("output/task3.png");
 }
