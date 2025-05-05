@@ -37,12 +37,8 @@ fn SquareClipCode(
     return bit0 | (bit1 << 1) | (bit2 << 2) | (bit3 << 3);
 }
 
-fn DivRound(x: anytype, y: @TypeOf(x)) @TypeOf(x) {
-    return @divFloor(2 * x + y, 2 * y);
-}
-
 fn PullX(x: i32, x0: i32, y0: i32, x1: i32, y1: i32) i32 {
-    return DivRound(y1 * (x - x0) + y0 * (x1 - x), x1 - x0);
+    return config.DivRound(y1 * (x - x0) + y0 * (x1 - x), x1 - x0);
 }
 
 fn CohenSutherlandClip(
@@ -140,7 +136,7 @@ fn SafeDivRound(x: i32, y: i32) i32 {
     if (y == 0) {
         return 0;
     } else {
-        return DivRound(x, y);
+        return config.DivRound(x, y);
     }
 }
 
@@ -274,9 +270,9 @@ fn CyrusBeckClip(
         std.debug.assert(q != 0);
 
         if (p * q < 0) {
-            tmax = @min(tmax, DivRound(rhs * q, p));
+            tmax = @min(tmax, config.DivRound(rhs * q, p));
         } else {
-            tmin = @max(tmin, DivRound(rhs * q, p));
+            tmin = @max(tmin, config.DivRound(rhs * q, p));
         }
     }
 
@@ -292,24 +288,29 @@ fn CyrusBeckClip(
     }
 }
 
-fn DrawRegionBorder(r: raster.Raster, points: []const [2]i32) void {
+pub fn DrawRegionBorder(
+    r: anytype,
+    rasterizer: anytype,
+    points: []const [2]i32,
+    color: render.RGBA,
+) void {
     r.RasterizeLine(
-        raster.BresenhamRasterizer,
+        rasterizer,
         points[points.len - 1][0],
         points[points.len - 1][1],
         points[0][0],
         points[0][1],
-        raster.RGBA_BLUE,
+        color,
     );
 
     for (0..points.len - 1) |i| {
         r.RasterizeLine(
-            raster.BresenhamRasterizer,
+            rasterizer,
             points[i][0],
             points[i][1],
             points[i + 1][0],
             points[i + 1][1],
-            raster.RGBA_BLUE,
+            color,
         );
     }
 }
@@ -367,26 +368,31 @@ pub fn Run() !void {
     const r = raster.Raster.init(data, kWidth, kHeight);
     r.Clear(raster.RGBA_WHITE);
 
-    DrawRegionBorder(r, &[_][2]i32{
+    DrawRegionBorder(r, raster.BresenhamRasterizer, &[_][2]i32{
         .{ 25, 25 },
         .{ 125, 25 },
         .{ 125, 125 },
         .{ 25, 125 },
-    });
+    }, raster.RGBA_BLUE);
 
-    DrawRegionBorder(r, &[_][2]i32{
+    DrawRegionBorder(r, raster.BresenhamRasterizer, &[_][2]i32{
         .{ 150, 50 },
         .{ 220, 50 },
         .{ 220, 150 },
         .{ 150, 150 },
-    });
+    }, raster.RGBA_BLUE);
 
     const triangle_region = [_][2]i32{
         .{ 180, 200 },
         .{ 100, 150 },
         .{ 50, 200 },
     };
-    DrawRegionBorder(r, &triangle_region);
+    DrawRegionBorder(
+        r,
+        raster.BresenhamRasterizer,
+        &triangle_region,
+        raster.RGBA_BLUE,
+    );
 
     for (0..vertex_pairs.items.len) |i| {
         const vtx = vertex_pairs.items[i];

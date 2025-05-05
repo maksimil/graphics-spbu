@@ -7,6 +7,7 @@ const task4 = @import("task4.zig");
 const task5 = @import("task5.zig");
 const task6 = @import("task6.zig");
 const task7 = @import("task7.zig");
+const task8 = @import("task8.zig");
 
 pub fn main() !void {
     config.RuntimeInitialize();
@@ -16,9 +17,10 @@ pub fn main() !void {
 
     // try task1.Run();
     // try task2.Run();
-    try task3.Run();
-    try task4.Run();
-    try task5.Run();
-    try task6.Run();
-    try task7.Run();
+    // try task3.Run();
+    // try task4.Run();
+    // try task5.Run();
+    // try task6.Run();
+    // try task7.Run();
+    try task8.Run();
 }

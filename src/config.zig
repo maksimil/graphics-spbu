@@ -42,6 +42,10 @@ pub fn Sqr(x: anytype) @TypeOf(x) {
     return x * x;
 }
 
+pub fn DivRound(x: anytype, y: @TypeOf(x)) @TypeOf(x) {
+    return @divFloor(2 * x + y, 2 * y);
+}
+
 // 0 if x=0
 pub fn Signi32(x: i32) i32 {
     const p: i32 = @intFromBool(x > 0);
