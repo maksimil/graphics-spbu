@@ -79,11 +79,12 @@ fn BasisTransform(origin: Vec3, basis: Basis, point: Vec3) Vec3 {
 
 // projections are R^3 -> R^3
 
-fn PerspectiveProject(point: Vec3) Vec3 {
-    const persepctive_view = Vec3{ .x = 0.5, .y = 1, .z = -0.3 };
-    const perspective_origin = Vec3{ .x = -5, .y = -10, .z = 3 };
-    const plane_distance: Scalar = 10;
-
+fn PerspectiveProject(
+    point: Vec3,
+    persepctive_view: Vec3,
+    perspective_origin: Vec3,
+    plane_distance: Scalar,
+) Vec3 {
     const basis = CameraBasis(persepctive_view);
     var transformed = BasisTransform(perspective_origin, basis, point);
 
@@ -95,8 +96,18 @@ fn PerspectiveProject(point: Vec3) Vec3 {
     return transformed;
 }
 
-fn CameraProject(point: Vec3) Vec3 {
-    return point;
+fn CameraProject(
+    point: Vec3,
+    persepctive_view: Vec3,
+    perspective_origin: Vec3,
+    alpha: Scalar,
+) Vec3 {
+    return PerspectiveProject(
+        point,
+        persepctive_view,
+        perspective_origin,
+        1 / @tan(alpha / 2),
+    );
 }
 
 fn ClipSpaceLine(
@@ -193,8 +204,22 @@ pub fn Run() !void {
 
         // Perspective projection
         {
-            const proj0 = PerspectiveProject(v0);
-            const proj1 = PerspectiveProject(v1);
+            const persepctive_view = Vec3{ .x = 0.5, .y = 1, .z = -0.3 };
+            const perspective_origin = Vec3{ .x = -5, .y = -10, .z = 3 };
+            const plane_distance: Scalar = 10;
+
+            const proj0 = PerspectiveProject(
+                v0,
+                persepctive_view,
+                perspective_origin,
+                plane_distance,
+            );
+            const proj1 = PerspectiveProject(
+                v1,
+                persepctive_view,
+                perspective_origin,
+                plane_distance,
+            );
             const maybe_edge = ClipSpaceLine(proj0, proj1, kTileWidth, kTileHeight);
 
             if (maybe_edge) |edge| {
@@ -211,8 +236,22 @@ pub fn Run() !void {
 
         // Camera projection
         {
-            const proj0 = CameraProject(v0);
-            const proj1 = CameraProject(v1);
+            const persepctive_view = Vec3{ .x = 0.5, .y = 1, .z = -0.3 };
+            const perspective_origin = Vec3{ .x = -1, .y = -2, .z = 0.7 };
+            const alpha: Scalar = std.math.pi / 3.0;
+
+            const proj0 = CameraProject(
+                v0,
+                persepctive_view,
+                perspective_origin,
+                alpha,
+            );
+            const proj1 = CameraProject(
+                v1,
+                persepctive_view,
+                perspective_origin,
+                alpha,
+            );
             const maybe_edge = ClipSpaceLine(proj0, proj1, kTileWidth, kTileHeight);
 
             if (maybe_edge) |edge| {
