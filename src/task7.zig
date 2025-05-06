@@ -110,7 +110,7 @@ fn CohenSutherlandClip(
     }
 }
 
-const Edge = struct { x0: i32, y0: i32, x1: i32, y1: i32 };
+pub const Edge = struct { x0: i32, y0: i32, x1: i32, y1: i32 };
 
 // clip by t/p_i <= q_i
 fn ClipT(tlen: i32, p: []const i32, q: []const i32) [2]i32 {
@@ -140,7 +140,7 @@ fn SafeDivRound(x: i32, y: i32) i32 {
     }
 }
 
-fn LiangBarskyClip(
+pub fn LiangBarskyClip(
     xoffset: i32,
     yoffset: i32,
     xsize: i32,

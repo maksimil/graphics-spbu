@@ -198,7 +198,7 @@ fn MakePxDrawerType(
         y0: i32,
 
         pub fn call(this: @This(), i: i32, n: i32, color: RGBA) void {
-            this.r.DrawPx(
+            this.r.AddPx(
                 this.x0 + xi * i + xn * n,
                 this.y0 + yi * i + yn * n,
                 color,
