@@ -6,7 +6,8 @@ const raster = @import("raster.zig");
 const task7 = @import("task7.zig");
 
 const kObjFilePath = "materials/african_head.obj";
-const SpacePoint = read_obj.ObjVertex;
+const Scalar = config.Scalar;
+const Vec3 = read_obj.ObjVertex;
 
 const kTileWidth = 512;
 const kTileHeight = 512;
@@ -25,19 +26,82 @@ const VertexPairSortCompare = struct {
     }
 };
 
-// projections are R^3 -> R^3
-
-fn PerspectiveProject(point: SpacePoint) SpacePoint {
-    return point;
+fn Dot(a: Vec3, b: Vec3) Scalar {
+    return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-fn CameraProject(point: SpacePoint) SpacePoint {
+fn Normalize(v: Vec3) Vec3 {
+    const norm = @sqrt(Dot(v, v));
+    return Vec3{ .x = v.x / norm, .y = v.y / norm, .z = v.z / norm };
+}
+
+const Basis = struct { bx: Vec3, by: Vec3, bz: Vec3 };
+
+fn CameraBasis(view: Vec3) Basis {
+    var bx: Vec3 = undefined;
+    var by: Vec3 = undefined;
+    var bz: Vec3 = undefined;
+
+    bz.x = -view.x;
+    bz.y = -view.y;
+    bz.z = -view.z;
+    bz = Normalize(bz);
+
+    const alpha = @sqrt(bz.x * bz.x + bz.y * bz.y);
+    std.debug.assert(alpha != 0);
+
+    bx.x = -bz.y / alpha;
+    bx.y = bz.x / alpha;
+    bx.z = 0;
+
+    by.x = -bz.z * bz.x / alpha;
+    by.y = -bz.z * bz.y / alpha;
+    by.z = alpha;
+
+    const basis = Basis{ .bx = bx, .by = by, .bz = bz };
+
+    return basis;
+}
+
+fn BasisTransform(origin: Vec3, basis: Basis, point: Vec3) Vec3 {
+    const dr = Vec3{
+        .x = point.x - origin.x,
+        .y = point.y - origin.y,
+        .z = point.z - origin.z,
+    };
+
+    return Vec3{
+        .x = Dot(dr, basis.bx),
+        .y = Dot(dr, basis.by),
+        .z = Dot(dr, basis.bz),
+    };
+}
+
+// projections are R^3 -> R^3
+
+fn PerspectiveProject(point: Vec3) Vec3 {
+    const persepctive_view = Vec3{ .x = 0.5, .y = 1, .z = -0.3 };
+    const perspective_origin = Vec3{ .x = -5, .y = -10, .z = 3 };
+    const plane_distance: Scalar = 10;
+
+    const basis = CameraBasis(persepctive_view);
+    var transformed = BasisTransform(perspective_origin, basis, point);
+
+    std.debug.assert(transformed.z != 0);
+
+    transformed.x = -transformed.x / transformed.z * plane_distance;
+    transformed.y = -transformed.y / transformed.z * plane_distance;
+
+    return transformed;
+}
+
+fn CameraProject(point: Vec3) Vec3 {
     return point;
 }
 
 fn ClipSpaceLine(
-    p0: SpacePoint,
-    p1: SpacePoint,
+    p0: Vec3,
+    p1: Vec3,
     width: i32,
     height: i32,
 ) ?task7.Edge {
@@ -63,8 +127,17 @@ pub fn Run() !void {
         try std.fs.cwd().openFile(kObjFilePath, std.fs.File.OpenFlags{});
     defer objfile.close();
 
-    const objdata = try read_obj.ParseObj(objfile.reader().any());
+    var objdata = try read_obj.ParseObj(objfile.reader().any());
     defer objdata.deinit();
+
+    // rotate so that z is up
+    for (0..objdata.vertices.items.len) |i| {
+        const v = &objdata.vertices.items[i];
+        const y = v.y;
+        const z = v.z;
+        v.y = -z;
+        v.z = y;
+    }
 
     var vertex_pairs = std.ArrayList(VertexPair).init(config.allocator);
     defer vertex_pairs.deinit();
@@ -126,7 +199,7 @@ pub fn Run() !void {
 
             if (maybe_edge) |edge| {
                 r.RasterizeLine(
-                    raster.BresenhamRasterizer,
+                    raster.XiaolinWuRasterizer,
                     edge.x0 + 0 * kTileWidth,
                     edge.y0,
                     edge.x1 + 0 * kTileWidth,
@@ -144,7 +217,7 @@ pub fn Run() !void {
 
             if (maybe_edge) |edge| {
                 r.RasterizeLine(
-                    raster.BresenhamRasterizer,
+                    raster.XiaolinWuRasterizer,
                     edge.x0 + 1 * kTileWidth,
                     edge.y0,
                     edge.x1 + 1 * kTileWidth,
